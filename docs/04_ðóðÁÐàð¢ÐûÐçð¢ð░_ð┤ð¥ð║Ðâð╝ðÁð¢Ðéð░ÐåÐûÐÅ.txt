@@ -1,0 +1,124 @@
+═══════════════════════════════════════════════════════════════════════════
+  ТЕХНІЧНА ДОКУМЕНТАЦІЯ (для розробників)
+═══════════════════════════════════════════════════════════════════════════
+
+1. АРХІТЕКТУРА
+──────────────
+  ┌────────────────────────────────────────────────────────────┐
+  │                  moodle_converter_gui.py                    │
+  │  ┌──────────┐  ┌──────────┐  ┌────────────┐                │
+  │  │ GUI      │  │ CLI      │  │ Lazy loader │               │
+  │  │ (tkinter)│  │(argparse)│  │(_load_core) │               │
+  │  └────┬─────┘  └────┬─────┘  └─────┬──────┘                │
+  │       └──────────────┴─────────────┘                        │
+  │                      │                                      │
+  │            converter_core.py                                │
+  └──────────────────────┼─────────────────────────────────────┘
+                         │
+  ┌──────────────────────┼─────────────────────────────────────┐
+  │              converter_core.py                               │
+  │                                                              │
+  │  ┌─────────────┐  ┌──────────────┐  ┌───────────────────┐   │
+  │  │ Читачі      │  │ Парсери      │  │ Експортери        │   │
+  │  │ файлових    │  │ структури    │  │ у формати Moodle  │   │
+  │  │ форматів    │  │ питань       │  │                   │   │
+  │  ├─────────────┤  ├──────────────┤  ├───────────────────┤   │
+  │  │ read_text_  │  │ parse_       │  │ to_gift()         │   │
+  │  │   file()    │  │   numbered_  │  │ to_moodle_xml()   │   │
+  │  │ read_docx_  │  │   lines()    │  │ to_aiken()        │   │
+  │  │   paragraphs│  │ parse_csv_   │  │ convert()         │   │
+  │  │ read_xlsx_  │  │   xlsx_rows()│  │                   │   │
+  │  │   rows()    │  │ post_process │  │ gift_escape()     │   │
+  │  │ read_csv_   │  │   ()         │  │ _fmt_frac()       │   │
+  │  │   rows()    │  │              │  │                   │   │
+  │  │ read_html_  │  │              │  │                   │   │
+  │  │   text()    │  │              │  │                   │   │
+  │  └─────────────┘  └──────────────┘  └───────────────────┘   │
+  │                                                              │
+  │  Модель даних:                                               │
+  │    @dataclass Answer   — text, correct, fraction, feedback,  │
+  │                          match                               │
+  │    @dataclass Question — qtype, name, text, answers[],       │
+  │                          feedback, default_mark              │
+  └──────────────────────────────────────────────────────────────┘
+
+2. ЗАЛЕЖНОСТІ
+─────────────
+  Python 3.10+:
+    • Стандартна бібліотека: re, csv, html, io, os, sys,
+      xml.sax.saxutils, dataclasses, typing, tkinter, argparse
+    • python-docx   — читання .docx (імпортується ліниво)
+    • openpyxl      — читання .xlsx (імпортується ліниво)
+
+  Збірка:
+    • PyInstaller 6.x — генерація Windows .exe
+    • python-build-standalone — повний Windows Python з tkinter
+
+3. ОПТИМІЗАЦІЇ ШВИДКОДІЇ
+─────────────────────────
+  ① Ліниві імпорти: docx та openpyxl завантажуються лише при потребі
+     (конвертація .docx / .xlsx), а не при старті програми.
+
+  ② Режим --onedir (замість --onefile): exe стартує миттєво,
+     бо не потрібно розпаковувати ~40 МБ у тимчасову теку при кожному
+     запуску. Папка _internal/ містить усі DLL/бібліотеки.
+
+  ③ Лінивий _load_core() у GUI: вікно з'являється миттєво,
+     converter_core (з docx/openpyxl) завантажується лише при першій
+     конвертації або перегляді.
+
+  ④ Мінімальний набір бібліотек: жодних важких фреймворків —
+     лише tkinter (вбудований), python-docx, openpyxl.
+
+4. ЗБІРКА .EXE
+──────────────
+  # Режим onedir (рекомендовано — швидкий запуск):
+  pyinstaller --noconfirm --clean --onedir --windowed \
+      --name MoodleTestConverter moodle_converter_gui.py
+
+  # Результат: dist/MoodleTestConverter/MoodleTestConverter.exe + _internal/
+
+  # Для розповсюдження: запакувати всю папку MoodleTestConverter/ у ZIP.
+
+5. АЛГОРИТМ ПАРСИНГУ
+────────────────────
+  parse_file(path)
+    │
+    ├── .txt/.html → read_text_file/read_html_text → splitlines
+    │                 → parse_numbered_lines(lines, marks)
+    │
+    ├── .docx      → read_docx_paragraphs → (paragraphs, tables)
+    │                 → parse_numbered_lines(paras, style_marks)
+    │                 → parse_csv_xlsx_rows(tables)  [якщо є таблиці]
+    │                 → об'єднання результатів
+    │
+    ├── .xlsx      → read_xlsx_rows → parse_csv_xlsx_rows
+    │
+    ├── .csv       → read_csv_rows → parse_csv_xlsx_rows
+    │
+    └──            → post_process(questions)
+                       ├── автовизначення типу (multichoice → truefalse /
+                       │   matching / shortanswer / numerical)
+                       ├── розрахунок ваг (fraction)
+                       └── генерація назв питань
+
+  parse_numbered_lines():
+    Для кожного рядка:
+      1. Пропуск рядка-ключа в кінці файлу («Відповіді: 1-а, 2-б»)
+      2. Рядок-ключ після питання («Відповідь: Б») → _apply_letters()
+      3. Питання за номером → нове Question (захист від хибних спрацьовувань:
+         короткі числові рядки без «?»/«:» — це відповіді, не питання)
+      4. «+ а) відповідь» / «- б) відповідь» → Answer з міткою
+      5. «а) відповідь *» → Answer з очищенням міток (_clean_correct_mark)
+      6. Ненумерований рядок → продовження тексту питання або відповіді
+
+6. РОЗШИРЕННЯ
+─────────────
+  Для додавання нового вхідного формату:
+    1. Написати функцію-читач (наприклад, read_pdf_pages)
+    2. Додати гілку в parse_file() за розширенням
+    3. Передати дані в parse_numbered_lines() або parse_csv_xlsx_rows()
+
+  Для додавання нового вихідного формату:
+    1. Написати функцію-експортер (наприклад, to_blackboard)
+    2. Додати в convert() та у FORMATS у GUI
