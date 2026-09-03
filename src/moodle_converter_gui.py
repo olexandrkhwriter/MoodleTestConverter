@@ -149,14 +149,45 @@ Moodle Test Converter
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Moodle Test Converter — повний набір інструментів")
+        from i18n_module import tr, get_lang, set_lang
+        self._tr = tr
+        self._lang = get_lang()
+        self.title(tr("app_title"))
         self.geometry("960x700")
         self.minsize(760, 560)
         self.files = []
         self._build()
 
+    def _switch_lang(self, code):
+        """Перемикання мови інтерфейсу: перебудовує всі вкладки."""
+        from i18n_module import set_lang
+        set_lang(code)
+        self._lang = code
+        # перебудувати весь інтерфейс новою мовою
+        for w in self.winfo_children():
+            w.destroy()
+        self.title(self._tr("app_title"))
+        self._build()
+
     # ------------------------------------------------------------------ UI
     def _build(self):
+        tr = self._tr
+        # панель перемикання мови (праворуч угорі)
+        langbar = ttk.Frame(self)
+        langbar.pack(fill="x", padx=6, pady=(4, 0))
+        ttk.Label(langbar, text=tr("msg_language") + ":").pack(side="right",
+                                                               padx=(6, 2))
+        from i18n_module import LANGS
+        self._lang_var = tk.StringVar(value=LANGS.get(self._lang, "Українська"))
+        lang_cb = ttk.Combobox(langbar, state="readonly", width=12,
+                               values=list(LANGS.values()),
+                               textvariable=self._lang_var)
+        lang_cb.pack(side="right")
+        _code_by_name = {v: k for k, v in LANGS.items()}
+        lang_cb.bind("<<ComboboxSelected>>",
+                     lambda e: self._switch_lang(
+                         _code_by_name.get(self._lang_var.get(), "uk")))
+
         nb = ttk.Notebook(self)
         nb.pack(fill="both", expand=True)
 
@@ -166,12 +197,12 @@ class App(tk.Tk):
         tab_branch = ttk.Frame(nb)
         tab_api = ttk.Frame(nb)
         tab_course = ttk.Frame(nb)
-        nb.add(tab_conv, text=" 🔄 Конвертер ")
-        nb.add(tab_students, text=" 👥 Списки студентів ")
-        nb.add(tab_gemini, text=" ✨ Генерація тестів (LLM) ")
-        nb.add(tab_branch, text=" 🌿 Розгалужені сценарії ")
-        nb.add(tab_api, text=" 🔗 Moodle API ")
-        nb.add(tab_course, text=" 📦 Генератор курсу ")
+        nb.add(tab_conv, text=tr("tab_converter"))
+        nb.add(tab_students, text=tr("tab_students"))
+        nb.add(tab_gemini, text=tr("tab_llm"))
+        nb.add(tab_branch, text=tr("tab_branch"))
+        nb.add(tab_api, text=tr("tab_api"))
+        nb.add(tab_course, text=tr("tab_course"))
 
         self._build_converter_tab(tab_conv)
         self._build_students_tab(tab_students)
@@ -185,31 +216,33 @@ class App(tk.Tk):
         top = ttk.Frame(root, padding=8)
         top.pack(fill="x")
 
-        ttk.Button(top, text="➕ Додати файли…", command=self.add_files
+        tr = self._tr
+        ttk.Button(top, text=tr("add_files"), command=self.add_files
                    ).pack(side="left")
-        ttk.Button(top, text="📂 Додати папку…", command=self.add_folder
+        ttk.Button(top, text=tr("add_folder"), command=self.add_folder
                    ).pack(side="left", padx=6)
-        ttk.Button(top, text="🗑 Очистити", command=self.clear_files
+        ttk.Button(top, text=tr("clear"), command=self.clear_files
                    ).pack(side="left")
 
-        ttk.Label(top, text="Формат:").pack(side="left", padx=(16, 4))
+        ttk.Label(top, text=tr("format_lbl")).pack(side="left", padx=(16, 4))
         self.fmt_var = tk.StringVar(value=list(FORMATS)[0])
         ttk.Combobox(top, textvariable=self.fmt_var, values=list(FORMATS),
                      state="readonly", width=44).pack(side="left")
 
-        ttk.Label(top, text="Категорія:").pack(side="left", padx=(16, 4))
+        ttk.Label(top, text=tr("category_lbl")).pack(side="left",
+                                                      padx=(16, 4))
         self.cat_var = tk.StringVar()
         ttk.Entry(top, textvariable=self.cat_var, width=18).pack(side="left")
 
         # режим кількості правильних відповідей
         mode = ttk.Frame(root, padding=(8, 0, 8, 2))
         mode.pack(fill="x")
-        ttk.Label(mode, text="Правильних відповідей:").pack(side="left")
+        ttk.Label(mode, text=tr("mode_lbl")).pack(side="left")
         self.single_var = tk.StringVar(value="multi")
-        ttk.Radiobutton(mode, text="Декілька (автовизначення з розмітки)",
+        ttk.Radiobutton(mode, text=tr("mode_multi"),
                         variable=self.single_var, value="multi"
                         ).pack(side="left", padx=8)
-        ttk.Radiobutton(mode, text="Одна (лише перша позначена)",
+        ttk.Radiobutton(mode, text=tr("mode_single"),
                         variable=self.single_var, value="single"
                         ).pack(side="left")
 
@@ -689,18 +722,19 @@ class App(tk.Tk):
 
         btns = ttk.Frame(top)
         btns.pack(fill="x", pady=4)
-        ttk.Button(btns, text="🌿 ЗГЕНЕРУВАТИ СЦЕНАРІЙ",
+        tr = self._tr
+        ttk.Button(btns, text=tr("br_generate"),
                    command=self.branch_generate).pack(side="left")
-        ttk.Button(btns, text="🌳 Показати дерево",
+        ttk.Button(btns, text=tr("br_tree"),
                    command=self.branch_tree).pack(side="left", padx=4)
-        ttk.Button(btns, text="💾 Зберегти сценарій (.txt)",
+        ttk.Button(btns, text=tr("br_save"),
                    command=lambda: self._save_text(self.br_out, ".txt")
                    ).pack(side="left", padx=4)
-        ttk.Button(btns, text="💾 Експорт GIFT для Moodle",
+        ttk.Button(btns, text=tr("br_gift"),
                    command=self.branch_gift).pack(side="left", padx=4)
-        ttk.Button(btns, text="🎓 Експорт H5P (.json)",
+        ttk.Button(btns, text=tr("br_h5p"),
                    command=self.branch_h5p).pack(side="left", padx=4)
-        ttk.Button(btns, text="📄 Експорт JSON",
+        ttk.Button(btns, text=tr("br_json"),
                    command=self.branch_json).pack(side="left", padx=4)
 
         self.br_out = tk.Text(top, height=16, wrap="none",
@@ -866,29 +900,29 @@ class App(tk.Tk):
         return tree
 
     def branch_h5p(self):
-        """Експорт сценарію у формат H5P Branching Scenario (content.json)."""
-        from branching_module import export_h5p
+        """Експорт сценарію як готового пакета .h5p (ZIP із h5p.json +
+        content/content.json), який Moodle приймає напряму через
+        'Інтерактивний вміст (H5P) → Завантажити'."""
+        from branching_module import export_h5p_file
         tree = self._branch_tree_or_warn()
         if tree is None:
             return
         path = filedialog.asksaveasfilename(
-            defaultextension=".json",
-            initialfile="content.json",
-            filetypes=[("H5P content.json", "*.json")])
+            defaultextension=".h5p",
+            initialfile="branching_scenario.h5p",
+            filetypes=[("H5P пакет", "*.h5p")])
         if not path:
             return
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(export_h5p(tree))
+            export_h5p_file(tree, path)
         except Exception as e:
             messagebox.showerror("H5P", f"Не вдалося зберегти: {e}")
             return
         messagebox.showinfo(
             "H5P",
-            "Експортовано content.json для H5P Branching Scenario.\n\n"
-            "Як використати: покладіть файл у папку content/ пакета .h5p "
-            "(бібліотека H5P.BranchingScenario) або в Moodle: "
-            "Інтерактивний вміст (H5P) → Завантажити.")
+            "Експортовано готовий пакет .h5p.\n\n"
+            "Імпорт у Moodle: курс → Додати активність → Інтерактивний "
+            "вміст (H5P) → 'Завантажити' → оберіть цей файл .h5p.")
 
     def branch_json(self):
         """Експорт сценарію у універсальний JSON (чиста структура дерева)."""
@@ -1013,60 +1047,59 @@ class App(tk.Tk):
 
     # ------------------------------------------------------ COURSE TAB
     def _build_course_tab(self, root):
+        tr = self._tr
         top = ttk.Frame(root, padding=8)
         top.pack(fill="both", expand=True)
 
         # --- глобальні налаштування (1 раз на курс) ---
-        gs = ttk.LabelFrame(top, text=" Глобальні налаштування тестування "
-                            "(задаються 1 раз на весь курс) ", padding=6)
+        gs = ttk.LabelFrame(top, text=tr("c_settings"), padding=6)
         gs.pack(fill="x", pady=4)
-        ttk.Label(gs, text="Назва курсу:").grid(row=0, column=0, sticky="w")
+        ttk.Label(gs, text=tr("c_name")).grid(row=0, column=0, sticky="w")
         self.c_name = ttk.Entry(gs, width=30)
         self.c_name.insert(0, "Мій курс")
         self.c_name.grid(row=0, column=1, padx=4, sticky="we")
-        ttk.Label(gs, text="Назва заняття:").grid(row=0, column=2, sticky="w")
+        ttk.Label(gs, text=tr("c_prefix")).grid(row=0, column=2, sticky="w")
         self.c_prefix = ttk.Combobox(gs, values=["Заняття", "Тема", "Тиждень",
                                                  "Модуль", "Урок"], width=10)
         self.c_prefix.set("Заняття")
         self.c_prefix.grid(row=0, column=3, padx=4, sticky="w")
 
-        ttk.Label(gs, text="Час (хв, 0=без обмеж.):").grid(row=1, column=0,
-                                                             sticky="w")
+        ttk.Label(gs, text=tr("c_time")).grid(row=1, column=0,
+                                               sticky="w")
         self.c_time = ttk.Spinbox(gs, from_=0, to=600, width=6)
         self.c_time.set(0)
         self.c_time.grid(row=1, column=1, sticky="w", padx=4)
-        ttk.Label(gs, text="Спроб (0=необмеж.):").grid(row=1, column=2,
-                                                        sticky="w")
+        ttk.Label(gs, text=tr("c_attempts")).grid(row=1, column=2,
+                                                   sticky="w")
         self.c_attempts = ttk.Spinbox(gs, from_=0, to=10, width=6)
         self.c_attempts.set(0)
         self.c_attempts.grid(row=1, column=3, sticky="w", padx=4)
 
-        ttk.Label(gs, text="Оцінювання:").grid(row=2, column=0, sticky="w")
+        ttk.Label(gs, text=tr("c_grading")).grid(row=2, column=0, sticky="w")
         self.c_grading = ttk.Combobox(gs, values=["highest", "average",
                                                   "last", "first"],
                                       state="readonly", width=10)
         self.c_grading.set("highest")
         self.c_grading.grid(row=2, column=1, sticky="w", padx=4)
-        ttk.Label(gs, text="Прохідний бал (%):").grid(row=2, column=2,
-                                                       sticky="w")
+        ttk.Label(gs, text=tr("c_pass")).grid(row=2, column=2,
+                                               sticky="w")
         self.c_pass = ttk.Spinbox(gs, from_=0, to=100, width=6)
         self.c_pass.set(60)
         self.c_pass.grid(row=2, column=3, sticky="w", padx=4)
 
         self.c_shuffle = tk.BooleanVar(value=True)
-        ttk.Checkbutton(gs, text="Перемішувати варіанти відповідей",
+        ttk.Checkbutton(gs, text=tr("c_shuffle"),
                         variable=self.c_shuffle).grid(row=3, column=0,
                                                       columnspan=2,
                                                       sticky="w", pady=2)
-        ttk.Label(gs, text="Випадкових питань у тесті (0 = усі за списком):"
+        ttk.Label(gs, text=tr("c_random")
                   ).grid(row=3, column=2, sticky="w")
         self.c_random = ttk.Spinbox(gs, from_=0, to=500, width=6)
         self.c_random.set(0)
         self.c_random.grid(row=3, column=3, sticky="w", padx=4)
 
         # --- список тем (щоб не вводити для кожного заняття окремо) ---
-        tf = ttk.LabelFrame(top, text=" Список тем (по одній в рядок) — "
-                            "підставляється в назву занять за порядком ",
+        tf = ttk.LabelFrame(top, text=tr("c_topics_title"),
                             padding=6)
         tf.pack(fill="x", pady=4)
         self.c_topics = tk.Text(tf, height=5, wrap="word",
@@ -1079,17 +1112,14 @@ class App(tk.Tk):
                   wraplength=820, justify="left").pack(anchor="w")
 
         # --- формат виходу ---
-        of = ttk.LabelFrame(top, text=" Формат вихідного файлу ", padding=6)
+        of = ttk.LabelFrame(top, text=tr("c_outfmt"), padding=6)
         of.pack(fill="x", pady=4)
         self.c_outfmt = tk.StringVar(value="mbz")
-        ttk.Radiobutton(of, text="📦 Повний курс Moodle (.mbz) — "
-                        "резервна копія курсу (секції + тести + журнал "
-                        "оцінок), імпорт через Restore",
+        ttk.Radiobutton(of, text=tr("c_fmt_mbz"),
                         variable=self.c_outfmt, value="mbz").pack(anchor="w")
-        ttk.Radiobutton(of, text="📄 Банк питань (Moodle XML) — "
-                        "ієрархічні категорії, імпорт у банк питань",
+        ttk.Radiobutton(of, text=tr("c_fmt_xml"),
                         variable=self.c_outfmt, value="xml").pack(anchor="w")
-        ttk.Label(of, text="Режим перегляду (Review options):").pack(
+        ttk.Label(of, text=tr("c_review")).pack(
             side="left", padx=(0, 4), pady=2)
         self.c_review = ttk.Combobox(
             of, values=["standard", "strict", "full"],
@@ -1100,19 +1130,18 @@ class App(tk.Tk):
         # --- файли (drag-and-drop) ---
         ff = ttk.Frame(top)
         ff.pack(fill="x", pady=4)
-        ttk.Button(ff, text="📂 Додати сирі файли…",
+        ttk.Button(ff, text=tr("c_add_files"),
                    command=self.course_add_files).pack(side="left")
-        ttk.Button(ff, text="📁 Додати папку з файлами",
+        ttk.Button(ff, text=tr("c_add_folder"),
                    command=self.course_add_folder).pack(side="left", padx=4)
-        ttk.Button(ff, text="🗑 Очистити",
+        ttk.Button(ff, text=tr("clear"),
                    command=self.course_clear).pack(side="left", padx=4)
-        self.course_files_lbl = ttk.Label(ff, text="Файлів: 0",
+        self.course_files_lbl = ttk.Label(ff, text=tr("files_count", n=0),
                                           foreground="#666")
         self.course_files_lbl.pack(side="left", padx=10)
 
         # зона drag-and-drop + список файлів курсу
-        dz = ttk.LabelFrame(top, text=" Сирі файли курсу — перетягніть "
-                            "файли/папки сюди (масове додавання) ",
+        dz = ttk.LabelFrame(top, text=tr("c_drop_title"),
                             padding=4)
         dz.pack(fill="both", expand=True, pady=4)
         self.course_listbox = tk.Listbox(
@@ -1124,16 +1153,15 @@ class App(tk.Tk):
         self.course_listbox.pack(side="left", fill="both", expand=True)
         cscroll.pack(side="right", fill="y")
         ttk.Label(dz, foreground="#0a7a0a",
-                  text="⬇ Drop: .txt .doc .docx .xlsx .csv .html — "
-                       "усі підтримувані формати",
+                  text=tr("c_drop_hint"),
                   font=("Segoe UI", 9, "bold")).pack(fill="x")
         self._setup_course_dnd()
 
         bf = ttk.Frame(top)
         bf.pack(pady=6)
-        ttk.Button(bf, text="⚙ ЗГЕНЕРУВАТИ КУРС",
+        ttk.Button(bf, text=tr("c_generate"),
                    command=self.course_generate).pack(side="left", padx=4)
-        ttk.Button(bf, text="📤 Експорт сирих файлів…",
+        ttk.Button(bf, text=tr("c_export_raw"),
                    command=self.course_export_raw).pack(side="left", padx=4)
 
         self.course_log = tk.Text(top, height=8, wrap="none",

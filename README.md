@@ -1,109 +1,97 @@
 # Moodle Test Converter 🎓
 
-Інструмент із графічним інтерфейсом (Tkinter) для конвертації тестових
-завдань у формати Moodle та генерації повних курсів.
+**[English](#english) | [Українська](#українська)**
 
-## Можливості
+A desktop toolkit (Tkinter GUI + CLI) for converting test files into
+Moodle formats and generating complete Moodle course backups.
 
-### 🔄 Конвертер тестів
-- **Вхідні формати:** `.txt`, `.docx`, `.doc` (Word 97-2003), `.xlsx`,
-  `.csv`, `.html`
-- **Вихідні формати:** GIFT, Moodle XML, Aiken
-- **Розмітка правильних відповідей:** зірочка (`*`), `+`, `✓`, жирний /
-  підкреслений / кольоровий текст, ключі відповідей (`ANSWER: B`,
-  `Відповіді: 1-а, 2-б`), формати дампів `newTem;` / `QuestName:` /
-  `trueNum:`
-- Плоскі (unlettered) списки відповідей у Word (автонумерація numId)
-- Надійне читання `.doc` із примусовим UTF-8 (виправлено втрату кирилиці
-  на Windows: `txt:Text (encoded):UTF8` + детектор зіпсованого тексту)
-- Режим «одна правильна відповідь» / «декілька правильних»
+**Interface: Ukrainian 🇺🇦 / English 🇬🇧** — switchable at runtime.
 
-### 📦 Генератор курсу (Moodle Backup `.mbz`)
-- Масове додавання сирих файлів (drag-and-drop або кнопки)
-- Глобальні налаштування тестування **один раз на курс**: час, кількість
-  спроб, метод оцінювання, прохідний бал, перемішування, review-опції
-  (standard / strict / full), кількість **випадкових питань** у тесті
-  (0 = усі фіксовані)
-- Генерація повної резервної копії курсу `.mbz` (**tar.gz** +
-  `.ARCHIVE_INDEX`) у форматі **Moodle 4.5**:
-  - питання — `question_bank_entries → question_version` (схема 4.x);
-  - слоти тесту — `question_instance` із **`question_reference` →
-    `questionbankentryid`** для фіксованих питань або
-    `question_set_reference` для випадкових;
-  - повне дерево: `moodle_backup.xml`, `questions.xml`, `gradebook.xml`,
-    `course/`, `sections/`, `activities/quiz_N/`
-- Або ієрархічний банк питань (Moodle XML)
-- Експорт сирих файлів у нормалізований Aiken-`.txt`
+---
 
-### ✨ Генерація тестів (LLM)
-- 8 провайдерів (платні та безкоштовні): Gemini, OpenAI, Anthropic,
-  Mistral, Groq, OpenRouter, Together, локальні (Ollama)
-- Перевірка API-ключа через сервер із завантаженням списку доступних
-  моделей
-- Рівні складності з когнітивними пастками та застарілими практиками
-  (для медичних тестів)
+<a name="english"></a>
+## English
 
-### 🌿 Розгалужені сценарії (branching scenarios)
-- Генерація дерева рішень через будь-який LLM (вбудований системний
-  промпт українською: вузли NODE_x, кінцівки END_x, SCORE_CHANGE,
-  рівні складності easy/medium/hard)
-- Ієрархічне відображення дерева
-- **Експорт:** GIFT (Moodle), **H5P Branching Scenario** (`content.json`),
-  універсальний **JSON** (`branching-scenario/1.0`)
+### Features
+- **🔄 Test converter** — `.txt` / `.docx` / `.doc` / `.xlsx` / `.csv` /
+  `.html` → GIFT, Moodle XML, Aiken. Correct-answer markup: `*`, `+`,
+  `✓`, bold/red/highlighted text, answer keys, `QuestName:`/`trueNum:`
+  exam dumps. Robust `.doc` reading with forced UTF‑8 (no Cyrillic loss,
+  no binary "hieroglyph" tail).
+- **📦 Course builder (.mbz)** — full Moodle 4.5 course backup
+  (tar.gz + `.ARCHIVE_INDEX`): sections, quizzes, question bank,
+  gradebook. Global settings set once per course, including **random
+  questions per quiz**. Fixed questions use `question_reference`
+  (restores correctly); random ones use `question_set_reference`.
+- **✨ Test generation (LLM)** — 8 providers (Gemini, OpenAI, Anthropic,
+  Mistral, Groq, OpenRouter, Together, Ollama) with live model loading.
+- **🌿 Branching scenarios** — LLM-generated decision trees; export to
+  GIFT, **H5P Branching Scenario (`.h5p` package)** and JSON.
+- **👥 Student lists**, **🔗 Moodle API** import/export.
 
-### 👥 Списки студентів
-- Формування списків груп для зарахування (CSV для Moodle)
-
-### 🔗 Moodle API
-- Імпорт/експорт баз тестів через Moodle Web Services
-
-## Встановлення
-
-### Варіант A: готовий інсталятор (Windows)
-Завантажте `MoodleTestConverter_Setup.exe` з розділу Releases.
-
-### Варіант B: з вихідного коду
+### Install
 ```bash
 pip install -r requirements.txt
-# для drag-and-drop у конструкторі курсів (необов'язково):
-pip install tkinterdnd2
-python moodle_converter_gui.py
+pip install tkinterdnd2   # optional, for drag-and-drop
+python src/moodle_converter_gui.py
 ```
 
-CLI-режим:
+### CLI
 ```bash
-python moodle_converter_gui.py тести.txt --format gift --outdir out
-python moodle_converter_gui.py тести.txt --format xml --single
+python src/moodle_converter_gui.py tests.txt --format gift --outdir out
+python src/moodle_converter_gui.py tests.txt --format xml --single
 ```
 
-## Структура репозиторію
+### Documentation
+- **English:** `docs_en/` — [User guide](docs_en/USER_GUIDE_EN.md),
+  [.mbz specification](docs_en/MOODLE_MBZ_SPECIFICATION_EN.md)
+- **Українською:** `docs/`
 
-```
-src/
-  converter_core.py      # парсер вхідних форматів + експорт GIFT/XML/Aiken
-  moodle_converter_gui.py# головне вікно (Tkinter, 6 вкладок)
-  course_module.py       # банк питань Moodle XML із сирих файлів
-  mbz_module.py          # генератор повного бекапу курсу (.mbz, tar.gz)
-  branching_module.py    # розгалужені сценарії (LLM + парсер + H5P/JSON)
-  llm_module.py          # універсальна робота з LLM-провайдерами
-  gemini_module.py       # генерація тестів (Gemini-сумісні)
-  students_module.py     # списки студентів
-  moodle_api_module.py   # Moodle Web Services API
-tests_uni/, tests_uni2/  # 32 тестові кейси (119+ питань)
-docs/                    # документація українською (посібник, формати,
-                         # специфікація .mbz, тест-кейси, changelog)
-```
+---
 
-## Тестування
+<a name="українська"></a>
+## Українська
 
+### Можливості
+- **🔄 Конвертер тестів** — `.txt` / `.docx` / `.doc` / `.xlsx` / `.csv`
+  / `.html` → GIFT, Moodle XML, Aiken. Розмітка правильних: `*`, `+`,
+  `✓`, жирний/кольоровий текст, ключі відповідей, дампи `QuestName:` /
+  `trueNum:`. Надійне читання `.doc` із примусовим UTF‑8 (без втрати
+  кирилиці та без «ієрогліфів» у кінці).
+- **📦 Генератор курсу (.mbz)** — повна резервна копія курсу Moodle 4.5
+  (tar.gz + `.ARCHIVE_INDEX`): секції, тести, банк питань, журнал
+  оцінок. Глобальні налаштування один раз на курс, включно з кількістю
+  **випадкових питань у тесті**. Фіксовані питання — через
+  `question_reference` (коректний Restore), випадкові — через
+  `question_set_reference`.
+- **✨ Генерація тестів (LLM)** — 8 провайдерів із завантаженням моделей.
+- **🌿 Розгалужені сценарії** — дерева рішень через LLM; експорт у GIFT,
+  **H5P Branching Scenario (пакет `.h5p`)** та JSON.
+- **👥 Списки студентів**, **🔗 Moodle API** імпорт/експорт.
+
+### Встановлення
 ```bash
-python src/test_mbz.py                  # генерація .mbz (tar.gz)
-python src/test_course_integration.py   # змішані формати -> .mbz
+pip install -r requirements.txt
+pip install tkinterdnd2   # опційно, для drag-and-drop
+python src/moodle_converter_gui.py
 ```
 
-Повний регресійний набір: 32 файли, 119+ питань, усі формати розмітки.
+### Документація
+- **Українською:** `docs/` — посібник, формати, специфікація `.mbz`,
+  тест-кейси, changelog
+- **English:** `docs_en/`
 
-## Ліцензія
+---
 
-Безкоштовно для освітнього використання. Розробник не несе
-відповідальності за наслідки використання (див. `LICENSE.txt`).
+## Repository layout
+
+```
+src/        — source code (13 modules + tests)
+docs/       — Ukrainian documentation
+docs_en/    — English documentation
+tests_uni/, tests_uni2/  — 32 test cases (119+ questions)
+```
+
+## License
+
+Free for educational use. No liability assumed (see `LICENSE.txt`).

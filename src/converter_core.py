@@ -235,18 +235,63 @@ def read_doc_text(path: str) -> str:
     # 4) crude fallback — extract printable text from the binary stream
     with open(path, "rb") as f:
         data = f.read()
-    # Word stores text mostly as UTF-16LE in the WordDocument stream
+    # Word stores text mostly as UTF-16LE in the WordDocument stream.
+    # IMPORTANT: the character class must list Latin + Cyrillic EXPLICITLY.
+    # Using \w here is a bug: in Unicode mode \w also matches CJK
+    # ideographs, so binary garbage at the end of the stream decodes into
+    # "hieroglyphs" that get glued to the end of the document.
+    # spaces/tabs are allowed (they separate words), but NOT other
+    # whitespace/control chars — they mark binary noise
+    allowed = (r"A-Za-zА-Яа-яЇїІіЄєҐґ0-9 \t"
+               r".,;:!?()\[\]\-–—«»„“”\'’/*+=%№<>→°_")
+    run_re = re.compile(rf"[{allowed}]{{4,}}", flags=re.UNICODE)
+    # OLE storage / stream names and other binary artefacts that appear at
+    # the end of the WordDocument stream and are NOT document content
+    ole_noise = re.compile(
+        r"^(Root Entry|[01]?Table|WordDocument|SummaryInformation|"
+        r"DocumentSummaryInformation|MsoDataStore|Properties|CompObj|"
+        r"ObjectPool|Macros|VBA|Data|Encryption|\d+)$", re.IGNORECASE)
     best = ""
     for enc in ("utf-16-le", "cp1251", "utf-8"):
         try:
             raw = data.decode(enc, errors="ignore")
         except Exception:
             continue
-        # keep runs of letters/digits/punctuation (drop binary noise)
-        runs = re.findall(
-            r'[\w\sА-Яа-яЇїІіЄєҐґ.,;:!?()\[\]\-–—«»„“”\'’/*+=%№<>→°]{6,}',
-            raw, flags=re.UNICODE)
-        text = "\n".join(r.strip() for r in runs if r.strip())
+        # work LINE BY LINE (a binary tail like 'aaaa...' often shares one
+        # regex run with real text via whitespace, so run-level filtering
+        # cannot catch it — line-level filtering can)
+        lines = []
+        for ln in raw.splitlines():
+            ln = ln.strip()
+            if len(ln) < 2:
+                continue
+            # every character must belong to the allowed alphabet
+            if any(not re.match(rf"[{allowed}]", c) for c in ln):
+                continue
+            letters = sum(1 for c in ln if c.isalpha())
+            if letters < max(2, len(ln) // 4):
+                continue
+            # drop a line dominated by a single repeated char: either the
+            # whole line is 'aaaa...' or a real text line ends with a long
+            # repeated-char tail (binary padding glued to the last line)
+            compact = ln.replace(" ", "")
+            if len(set(compact)) <= 2 and len(compact) > 8:
+                continue
+            mrep = re.search(r"(.)\1{9,}$", compact)
+            if mrep:
+                ln = ln[:ln.rfind(mrep.group(0))].rstrip()
+                if sum(1 for c in ln if c.isalpha()) < 2:
+                    continue
+            # drop lines that are pure consonant garbage (no vowels at all
+            # = not Ukrainian/English text, just decoded binary noise)
+            if letters > 0 and not re.search(
+                    r"[аеєиіїоуюяaeiouyАЕЄИІЇОУЮЯAEIOUY]", ln):
+                continue
+            # drop OLE structure names
+            if ole_noise.match(ln):
+                continue
+            lines.append(ln)
+        text = "\n".join(lines)
         # prefer the decoding that yields more Cyrillic
         if text.count("і") + text.count("а") > best.count("і") + best.count("а"):
             best = text

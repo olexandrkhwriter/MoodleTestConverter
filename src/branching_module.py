@@ -337,6 +337,55 @@ def export_h5p(tree: dict) -> str:
     return json.dumps(tree_to_h5p(tree), ensure_ascii=False, indent=2)
 
 
+def build_h5p_package(tree: dict) -> bytes:
+    """Будує повний пакет .h5p (ZIP), який Moodle/H5P.com приймає напряму.
+
+    Структура пакета (стандарт H5P):
+      h5p.json            — маніфест (title, language, mainLibrary,
+                            preloadedDependencies)
+      content/content.json— параметри контенту (branchingScenario)
+
+    Голий content.json Moodle НЕ імпортує — потрібен саме ZIP-пакет
+    із розширенням .h5p і маніфестом h5p.json у корені.
+    """
+    import io
+    import zipfile
+
+    content_json = json.dumps(tree_to_h5p(tree), ensure_ascii=False,
+                              indent=2)
+    title = (tree.get("title") or "Branching Scenario")[:255]
+    manifest = {
+        "title": title,
+        "language": "uk",
+        "mainLibrary": "H5P.BranchingScenario",
+        "embedTypes": ["div"],
+        "license": "U",
+        "defaultLanguage": "uk",
+        "preloadedDependencies": [
+            {"machineName": "H5P.BranchingScenario",
+             "majorVersion": 1, "minorVersion": 7},
+            {"machineName": "H5P.BranchingQuestion",
+             "majorVersion": 1, "minorVersion": 0},
+            {"machineName": "H5P.AdvancedText",
+             "majorVersion": 1, "minorVersion": 1},
+        ],
+    }
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("h5p.json",
+                   json.dumps(manifest, ensure_ascii=False, indent=2))
+        z.writestr("content/content.json", content_json)
+    return buf.getvalue()
+
+
+def export_h5p_file(tree: dict, path: str) -> str:
+    """Записує готовий пакет .h5p на диск. Повертає шлях."""
+    data = build_h5p_package(tree)
+    with open(path, "wb") as f:
+        f.write(data)
+    return path
+
+
 def export_json(tree: dict) -> str:
     """Повертає універсальний JSON сценарію (чиста структура дерева)."""
     doc = {
